@@ -1,17 +1,17 @@
 import asyncio
 import json
 import os
-import pathlib
 import signal
 import time
 from io import TextIOBase
+from pathlib import Path
 from typing import cast
 
 import httpx
 from environs import Env
 from tqdm import tqdm
 
-BASE_DIR = pathlib.Path(__file__).resolve().parent.parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 env = Env()
 env.read_env(str(BASE_DIR / '.env'))
@@ -19,75 +19,20 @@ env.read_env(str(BASE_DIR / '.env'))
 github_token = env('GITHUB_TOKEN')
 
 keywords = (
-    'buffer overflow',
-    'denial of service',
-    'dos',
-    'XML External Entity (XXE)',
-    'vulnerability',
-    'CVE',
-    'Cross-Site Scripting (XSS)',
-    'National Vulnerability Database (NVD)',
-    'malicious code',
-    'Cross-Site Request Forgery (CSRF)',
-    'exploit',
-    'directory traversal',
-    'Remote Code Execution (RCE)',
-    'Cross-Site Request Forgery (XSRF)',
-    'session fixation',
-    'cross-origin resource sharing (CORS)',
-    'infinite loop',
-    'brute force',
-    'cache overflow',
-    'command injection',
-    'cross frame scripting',
-    'CSV injection',
-    'eval injection',
-    'execution after redirect',
-    'format string',
-    'path disclosure',
-    'function injection',
-    'replay attack',
-    'session hijacking',
-    'smurf attack',
-    'SQL injection',
-    'flooding',
-    'data tampering',
-    'input sanitization',
-    'hardcoded secret',
-    'insecure deserialization',
-    'credential leakage',
-    'information disclosure',
-    'user enumeration',
-    'race condition',
-    'parameter pollution',
-    'XML injection',
-    'API key exposure',
-    'arbitrary file upload',
-    'insufficient logging',
+    'buffer overflow', 'denial of service', 'dos', 'XML External Entity (XXE)', 'CVE', 'Cross-Site Scripting (XSS)',
+    'National Vulnerability Database (NVD)', 'malicious code', 'Cross-Site Request Forgery (CSRF)',
+    'directory traversal', 'Remote Code Execution (RCE)', 'Cross-Site Request Forgery (XSRF)', 'session fixation',
+    'cross-origin resource sharing (CORS)', 'infinite loop', 'brute force', 'cache overflow', 'command injection',
+    'cross frame scripting', 'CSV injection', 'eval injection', 'execution after redirect', 'format string',
+    'path disclosure', 'function injection', 'replay attack', 'session hijacking', 'smurf attack', 'SQL injection',
+    'flooding', 'data tampering', 'input sanitization', 'hardcoded secret', 'insecure deserialization',
+    'credential leakage', 'information disclosure', 'user enumeration', 'race condition', 'parameter pollution',
+    'XML injection', 'API key exposure', 'arbitrary file upload', 'insufficient logging',
 )
 suffixes = (
-    'prevent',
-    'fix',
-    'attack',
-    'protect',
-    'issue',
-    'correct',
-    'update',
-    'improve',
-    'change',
-    'check',
-    'malicious',
-    'insecure',
-    'vulnerable',
-    'vulnerability',
-    'remediate',
-    'secure',
-    'audit',
-    'identify',
-    'document',
-    'expose',
-    'monitor',
-    'analyze',
+    'prevent', 'fix', 'attack', 'protect', 'issue', 'correct', 'update', 'improve', 'change', 'check', 'malicious',
+    'insecure', 'vulnerable', 'vulnerability', 'remediate', 'secure', 'audit', 'identify', 'document', 'expose',
+    'monitor', 'analyze',
 )
 keywords_tuple = tuple(f'{keyword} {suffix}' for keyword in keywords for suffix in suffixes)
 
@@ -105,12 +50,12 @@ signal.signal(signal.SIGINT, signal_handler)
 async def fetch_commits_by_keyword(keyword: str, commits: dict, token: str, output_file_path: str) -> None:
     per_page = 100
     headers = {'Authorization': f'token {token}', 'Accept': 'application/vnd.github.cloak-preview'}
-    url, params = 'https://api.github.com/search/commits', {'q': keyword, 'per_page': per_page}
+    url, params = 'https://api.github.com/search/commits', {'q': keyword, 'per_page': per_page, 'page': 1}
 
-    pbar = tqdm(total=per_page, desc=f'Fetching commits for {keyword}', unit='commit')
+    pbar = tqdm(desc=f'Fetching commits for {keyword}', unit='commit')
 
     async with httpx.AsyncClient() as client:
-        while True:
+        while url:
             response = await client.get(url, headers=headers, params=params)
             remaining_limit = int(response.headers.get('X-RateLimit-Remaining', 0))
             if remaining_limit == 0:
@@ -122,8 +67,8 @@ async def fetch_commits_by_keyword(keyword: str, commits: dict, token: str, outp
 
             data = response.json()
             for item in data.get('items', []):
-                repository_url = item['repository']['html_url']
-                if repository_url not in commits:
+                repository_html_url = item['repository']['html_url']
+                if repository_html_url not in commits:
                     commit_data = {
                         'url': item['url'],
                         'html_url': item['html_url'],
@@ -131,11 +76,11 @@ async def fetch_commits_by_keyword(keyword: str, commits: dict, token: str, outp
                         'message': item['commit']['message'],
                         'keyword': keyword,
                     }
-                    commits[repository_url] = {}
-                    commits[repository_url][item['sha']] = commit_data
+                    commits[repository_html_url] = {}
+                    commits[repository_html_url][item['sha']] = commit_data
                     pbar.update(1)
                 else:
-                    if item['sha'] not in commits[repository_url]:
+                    if item['sha'] not in commits[repository_html_url]:
                         commit_data = {
                             'url': item['url'],
                             'html_url': item['html_url'],
@@ -143,7 +88,7 @@ async def fetch_commits_by_keyword(keyword: str, commits: dict, token: str, outp
                             'message': item['commit']['message'],
                             'keyword': keyword,
                         }
-                        commits[repository_url][item['sha']] = commit_data
+                        commits[repository_html_url][item['sha']] = commit_data
                         pbar.update(1)
 
                 with open(output_file_path, 'w', encoding='utf-8') as f:
@@ -156,8 +101,9 @@ async def fetch_commits_by_keyword(keyword: str, commits: dict, token: str, outp
 
             if 'Link' in response.headers:
                 links = response.headers['Link'].split(',')
-                next_link = [link[link.index('<') + 1:link.index('>')] for link in links if 'rel="next"' in link][0]
-                url = next_link if next_link else None
+                next_link = [link[link.index('<') + 1:link.index('>')] for link in links if 'rel="next"' in link]
+                url = next_link[0] if next_link else None
+                params = {}
             else:
                 url = None
 
