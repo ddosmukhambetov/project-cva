@@ -1,0 +1,14 @@
+[tool.poetry]
+name = "project-cva"
+version = "0.0.1"
+description = "A project for analyzing source code vulnerabilities and errors, providing reports with suggestions for fixes and improvements"
+authors = ["ddos <ddosmukhambetov@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
