@@ -3,6 +3,8 @@ FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
+ENV PYTHONPATH=/project-cva
+
 WORKDIR /project-cva
 
 RUN apt-get update && apt-get install -y \
