@@ -51,28 +51,18 @@ async def fetch_commits_by_keyword(keyword: str, parsed_data: dict, output_file_
                 data = response.json()
                 for item in data.get('items', []):
                     repository_html_url = item['repository']['html_url']
+                    commit_data = {
+                        'url': item['url'],
+                        'html_url': item['html_url'],
+                        'sha': item['sha'],
+                        'message': item['commit']['message'],
+                        'keyword': keyword,
+                    }
                     if repository_html_url not in parsed_data:
-                        commit_data = {
-                            'url': item['url'],
-                            'html_url': item['html_url'],
-                            'sha': item['sha'],
-                            'message': item['commit']['message'],
-                            'keyword': keyword,
-                        }
                         parsed_data[repository_html_url] = {}
+                    if item['sha'] not in parsed_data[repository_html_url]:
                         parsed_data[repository_html_url][item['sha']] = commit_data
                         pbar.update(1)
-                    else:
-                        if item['sha'] not in parsed_data[repository_html_url]:
-                            commit_data = {
-                                'url': item['url'],
-                                'html_url': item['html_url'],
-                                'sha': item['sha'],
-                                'message': item['commit']['message'],
-                                'keyword': keyword,
-                            }
-                            parsed_data[repository_html_url][item['sha']] = commit_data
-                            pbar.update(1)
 
                     with open(output_file_path, 'w', encoding='utf-8') as f:
                         json.dump(parsed_data, cast(TextIOBase, f), indent=4, ensure_ascii=False)
